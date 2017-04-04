@@ -16,6 +16,7 @@
 package io.hops.util;
 
 import io.hops.*;
+import io.hops.exception.StorageException;
 import io.hops.exception.StorageInitializtionException;
 import io.hops.metadata.common.EntityDataAccess;
 import io.hops.metadata.common.entity.ArrayVariable;
@@ -31,6 +32,7 @@ import io.hops.metadata.hdfs.dal.GroupDataAccess;
 import io.hops.metadata.hdfs.dal.UserDataAccess;
 import io.hops.metadata.hdfs.dal.UserGroupDataAccess;
 import io.hops.metadata.hdfs.dal.VariableDataAccess;
+import io.hops.multizone.MultiZoneStorageConnector;
 import io.hops.security.UsersGroups;
 import io.hops.transaction.EntityManager;
 import io.hops.transaction.TransactionCluster;
@@ -72,9 +74,13 @@ public class RMStorageFactory {
     dNdbEventStreaming = DalDriver.loadHopsNdbEventStreamingLib(
             YarnAPIStorageFactory.NDB_EVENT_STREAMING_FOR_DISTRIBUTED_SERVICE);
 
-    // TODO[rob]: it should be ok to use the primary connection settings here.
-    StorageConnector connector = dStorageFactory.getMultiZoneConnector().connectorFor(TransactionCluster.PRIMARY);
-    
+    StorageConnector connector;
+    try {
+      connector = dStorageFactory.getMultiZoneConnector().connectorFor(TransactionCluster.PRIMARY);
+    } catch (StorageException exc) {
+      throw new StorageInitializtionException(exc);
+    }
+
     String connectionString = connector.getClusterConnectString() + ":" +
             conf.getInt(YarnConfiguration.HOPS_NDB_EVENT_STREAMING_DB_PORT, 
                     YarnConfiguration.DEFAULT_HOPS_NDB_EVENT_STREAMING_DB_PORT);
@@ -109,9 +115,12 @@ public class RMStorageFactory {
             YarnAPIStorageFactory.DFS_STORAGE_DRIVER_CLASS_DEFAULT));
     dStorageFactory.setConfiguration(getMetadataClusterConfiguration(conf));
     EntityManager.addContextInitializer(getContextInitializer());
-    // connector going to the primary cluster
-    // TODO[rob]: should be ok in YARN
-    StorageConnector connector = dStorageFactory.getMultiZoneConnector().connectorFor(TransactionCluster.PRIMARY);
+    StorageConnector connector;
+    try {
+      connector = dStorageFactory.getMultiZoneConnector().connectorFor(TransactionCluster.PRIMARY);
+    } catch (StorageException exc) {
+      throw new StorageInitializtionException(exc);
+    }
     if(conf.getBoolean(CommonConfigurationKeys.HOPS_GROUPS_ENABLE, CommonConfigurationKeys.HOPS_GROUPS_ENABLE_DEFAULT)) {
       UsersGroups.init(
           (UserDataAccess) getDataAccess(connector, UserDataAccess.class),

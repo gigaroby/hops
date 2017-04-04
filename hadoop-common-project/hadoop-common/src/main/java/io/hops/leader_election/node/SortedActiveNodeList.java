@@ -20,16 +20,16 @@ import java.util.List;
 
 public interface SortedActiveNodeList {
 
-  public boolean isEmpty();
+  boolean isEmpty();
 
-  public int size();
+  int size();
 
-  public List<ActiveNode> getActiveNodes();
+  List<ActiveNode> getActiveNodes();
   
-  public List<ActiveNode> getSortedActiveNodes();
+  List<ActiveNode> getSortedActiveNodes();
 
-  public ActiveNode getActiveNode(InetSocketAddress address);
+  ActiveNode getActiveNode(InetSocketAddress address);
 
-  public ActiveNode getLeader();
+  ActiveNode getLeader();
 
 }

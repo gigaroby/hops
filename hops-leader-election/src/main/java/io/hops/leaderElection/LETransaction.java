@@ -25,6 +25,7 @@ import io.hops.leader_election.node.ActiveNodePBImpl;
 import io.hops.leader_election.node.SortedActiveNodeListPBImpl;
 import io.hops.metadata.election.entity.LeDescriptor;
 import io.hops.metadata.election.entity.LeDescriptorFactory;
+import io.hops.multizone.Zone;
 import io.hops.transaction.EntityManager;
 import io.hops.transaction.handler.LeaderOperationType;
 import io.hops.transaction.handler.LeaderTransactionalRequestHandler;
@@ -47,82 +48,82 @@ public class LETransaction {
   private void LETransaction() {
   }
 
-  protected LEContext doTransaction(
+  LEContext doTransaction(
       final LeDescriptorFactory lef,
       final LEContext currentContext,
       final boolean relinquishCurrentId,
+      boolean secondaryOnlyLeaderElection,
       final NDBLeaderElection le
   ) throws IOException {
 
-    LeaderTransactionalRequestHandler leaderElectionHandler =
-        new LeaderTransactionalRequestHandler(
-            LeaderOperationType.LEADER_ELECTION) {
-          @Override
-          public void preTransactionSetup(StorageConnector connector) throws IOException {
-            sortedList = null;
-            leFactory = lef;
-            super.preTransactionSetup(connector);
-            context = new LEContext(currentContext, lef);
-            if (relinquishCurrentId) {
-              context.id = NDBLeaderElection.LEADER_INITIALIZATION_ID;
-            }
-          }
+    LeaderOperationType opType = LeaderOperationType.PRIMARY_LEADER_ELECTION;
+    if (secondaryOnlyLeaderElection) {
+      opType = LeaderOperationType.SECONDARY_LEADER_ELECTION;
+    }
 
-          @Override
-          public void acquireLock(TransactionLocks locks) throws IOException {
-            LeLockFactory lockFactory = LeLockFactory.getInstance();
+    LeaderTransactionalRequestHandler leaderElectionHandler = new LeaderTransactionalRequestHandler(opType) {
+      @Override
+      public void preTransactionSetup(StorageConnector connector) throws IOException {
+        sortedList = null;
+        leFactory = lef;
+        super.preTransactionSetup(connector);
+        context = new LEContext(currentContext, lef);
+        if (relinquishCurrentId) {
+          context.id = NDBLeaderElection.LEADER_INITIALIZATION_ID;
+        }
+      }
 
-            if (currentContext.id == NDBLeaderElection.LEADER_INITIALIZATION_ID ||
-                currentContext.role == LeaderElectionRole.Role.LEADER ||
-                currentContext.nextTimeTakeStrongerLocks) {
-              locks.add(lockFactory.getLeVarsLock(leFactory.getVarsFinder(),
-                  TransactionLockTypes.LockType.WRITE)).add(lockFactory
-                  .getLeDescriptorLock(leFactory,
-                      TransactionLockTypes.LockType.READ_COMMITTED));
-              txLockType = TransactionLockTypes.LockType.WRITE;
+      @Override
+      public void acquireLock(TransactionLocks locks) throws IOException {
+        LeLockFactory lockFactory = LeLockFactory.getInstance();
 
-            } else {
-              locks.add(lockFactory.getLeVarsLock(leFactory.getVarsFinder(),
-                  TransactionLockTypes.LockType.READ)).add(lockFactory
-                  .getLeDescriptorLock(leFactory,
-                      TransactionLockTypes.LockType.READ_COMMITTED));
-              txLockType = TransactionLockTypes.LockType.READ;
-            }
-            // taking lock on first register is enough to achieve serialization
-          }
+        if (currentContext.id == NDBLeaderElection.LEADER_INITIALIZATION_ID ||
+            currentContext.role == LeaderElectionRole.Role.LEADER ||
+            currentContext.nextTimeTakeStrongerLocks) {
+          locks.add(lockFactory.getLeVarsLock(leFactory.getVarsFinder(),
+              TransactionLockTypes.LockType.WRITE)).add(lockFactory
+              .getLeDescriptorLock(leFactory,
+                  TransactionLockTypes.LockType.READ_COMMITTED));
+          txLockType = TransactionLockTypes.LockType.WRITE;
 
-          @Override
-          public Object performTask(StorageConnector connector) throws IOException {
+        } else {
+          locks.add(lockFactory.getLeVarsLock(leFactory.getVarsFinder(),
+              TransactionLockTypes.LockType.READ)).add(lockFactory
+              .getLeDescriptorLock(leFactory,
+                  TransactionLockTypes.LockType.READ_COMMITTED));
+          txLockType = TransactionLockTypes.LockType.READ;
+        }
+        // taking lock on first register is enough to achieve serialization
+      }
 
-            try {
-              if (context.nextTimeTakeStrongerLocks) {
-                context.nextTimeTakeStrongerLocks = false;
-              }
+      @Override
+      public Object performTask(StorageConnector connector) throws IOException {
+        if (context.nextTimeTakeStrongerLocks) {
+          context.nextTimeTakeStrongerLocks = false;
+        }
 
-              if (VarsRegister.getTimePeriod(leFactory.getVarsFinder()) == 0) {
-                VarsRegister.setTimePeriod(leFactory.getVarsFinder(),
-                    context.time_period);
-              } else {
-                context.time_period =
-                    VarsRegister.getTimePeriod(leFactory.getVarsFinder());
-              }
+        if (VarsRegister.getTimePeriod(leFactory.getVarsFinder()) == 0) {
+          VarsRegister.setTimePeriod(leFactory.getVarsFinder(),
+              context.time_period);
+        } else {
+          context.time_period =
+              VarsRegister.getTimePeriod(leFactory.getVarsFinder());
+        }
 
-              if (context.init_phase) {
-                initPhase();
-              } else {
-                periodicUpdate();
-              }
+        if (context.init_phase) {
+          initPhase();
+        } else {
+          periodicUpdate();
+        }
 
-              if (!le.isRunning()) {
-                throw new LeaderElectionForceAbort(
-                    "Aborting the transaction because the parent thread has stopped");
-              }
+        if (!le.isRunning()) {
+          throw new LeaderElectionForceAbort(
+              "Aborting the transaction because the parent thread has stopped");
+        }
 
-              return true;
-            } finally {
-            }
-          }
-        };
+        return true;
+      }
+    };
 
     Boolean retVal = (Boolean) leaderElectionHandler.handle();
     if (retVal != null && retVal.equals(true)) {
@@ -133,15 +134,13 @@ public class LETransaction {
   }
 
   private void initPhase() throws IOException {
-    LOG.debug("LE Status: id " + context.id +
-        " Executing initial phase of the protocol. ");
+    LOG.debug("LE Status: id " + context.id + " Executing initial phase of the protocol.");
     try {
       updateCounter();
       context.init_phase = false;
     } catch (LEWeakLocks wl) {
       context.nextTimeTakeStrongerLocks = true;
-      LOG.warn("LE Status: id " + context.id +
-          " initPhase Stronger locks requested in next round");
+      LOG.warn("LE Status: id " + context.id + " initPhase Stronger locks requested in next round");
     }
   }
 
@@ -160,7 +159,7 @@ public class LETransaction {
     context.last_hb_time = System.currentTimeMillis();
   }
 
-  protected void updateCounter() throws IOException, LEWeakLocks {
+  private void updateCounter() throws IOException, LEWeakLocks {
     if (descriptorExists(context.id)) {
       incrementCounter();
     } else {      //case: join, reboot, evicted
@@ -172,9 +171,9 @@ public class LETransaction {
       } else if (txLockType == TransactionLockTypes.LockType.WRITE) {
         long oldId = context.id;
         context.id = getNewNamenondeID();
-        LeDescriptor newDescriptor = leFactory
-            .getNewDescriptor(context.id, 0/*counter*/, context.rpc_address,
-                context.http_address);
+        LeDescriptor newDescriptor = leFactory.getNewDescriptor(
+            context.id, 0/*counter*/, context.rpc_address,
+            context.http_address, context.zone, context.connectedToPrimary);
         EntityManager.add(newDescriptor);
         if (oldId != NDBLeaderElection.LEADER_INITIALIZATION_ID) {
           LOG.warn(
@@ -192,22 +191,13 @@ public class LETransaction {
     }
   }
 
-  private boolean descriptorExists(final long processId)
-      throws TransactionContextException, StorageException {
+  private boolean descriptorExists(final long processId) throws TransactionContextException, StorageException {
     LeDescriptor descriptor = getDescriptor(processId);
-    if (descriptor != null) {
-      return true;
-    } else {
-      return false;
-    }
+    return descriptor != null;
   }
 
-  private LeDescriptor getDescriptor(final long process_id)
-      throws TransactionContextException, StorageException {
-    LeDescriptor descriptor = EntityManager
-        .find(leFactory.getByIdFinder(), process_id,
-            LeDescriptor.DEFAULT_PARTITION_VALUE);
-    return descriptor;
+  private LeDescriptor getDescriptor(final long process_id) throws TransactionContextException, StorageException {
+    return EntityManager.find(leFactory.getByIdFinder(), process_id, LeDescriptor.DEFAULT_PARTITION_VALUE);
   }
 
   private long getNewNamenondeID()
@@ -220,10 +210,11 @@ public class LETransaction {
   private void incrementCounter() throws IOException {
     LeDescriptor descriptor = getDescriptor(context.id);
     descriptor.setCounter(descriptor.getCounter() + 1);
+    descriptor.setConnectedToPrimary(context.connectedToPrimary);
     EntityManager.add(descriptor);
   }
 
-  List<LeDescriptor> getAllSortedDescriptors()
+  private List<LeDescriptor> getAllSortedDescriptors()
       throws TransactionContextException, StorageException {
     if (sortedList == null) {
       sortedList =
@@ -306,7 +297,7 @@ public class LETransaction {
   }
 
   private List<LeDescriptor> getAllAliveProcesses() throws IOException {
-    List<LeDescriptor> aliveList = new ArrayList<LeDescriptor>();
+    List<LeDescriptor> aliveList = new ArrayList<>();
     HashMap<Long, LeDescriptor> oldDescriptors = null;
     if (context.history.size() >= context.max_missed_hb_threshold) {
       oldDescriptors = context.history.get(0);
@@ -320,8 +311,6 @@ public class LETransaction {
         if (oldDesc != null) {
           if (newDesc.getCounter() > oldDesc.getCounter()) {
             aliveList.add(newDesc);
-          } else {
-            // LOG.debug("LE Status: id " + context.id + " Suspecting id "+oldDesc.getId());
           }
         } else {
           aliveList.add(newDesc);
@@ -334,7 +323,7 @@ public class LETransaction {
   }
 
   private void makeSortedActiveNodeList(List<LeDescriptor> nns) {
-    List<ActiveNode> activeNameNodeList = new ArrayList<ActiveNode>();
+    List<ActiveNode> activeNameNodeList = new ArrayList<>();
     for (LeDescriptor l : nns) {
       String hostNameNPort = l.getHostName();
       StringTokenizer st = new StringTokenizer(hostNameNPort, ":");
@@ -343,9 +332,9 @@ public class LETransaction {
       st = new StringTokenizer(intermediaryHostName, "/");
       String hostName = st.nextToken();
       String httpAddress = l.getHttpAddress();
-      ActiveNode ann =
-          new ActiveNodePBImpl(l.getId(), l.getHostName(), hostName, port,
-              httpAddress);
+      ActiveNode ann = new ActiveNodePBImpl(
+          l.getId(), l.getHostName(), hostName, port, httpAddress,
+          Zone.fromString(l.getZone()), l.isConnectedToPrimary());
       activeNameNodeList.add(ann);
     }
 
@@ -360,7 +349,7 @@ public class LETransaction {
       context.history.remove(0);
     }
     List<LeDescriptor> list = getAllSortedDescriptors();
-    HashMap<Long, LeDescriptor> descriptors = new HashMap<Long, LeDescriptor>();
+    HashMap<Long, LeDescriptor> descriptors = new HashMap<>();
     for (LeDescriptor desc : list) {
       descriptors.put(desc.getId(), desc);
     }

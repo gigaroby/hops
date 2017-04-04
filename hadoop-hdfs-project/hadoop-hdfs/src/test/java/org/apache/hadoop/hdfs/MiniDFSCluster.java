@@ -643,7 +643,7 @@ public class MiniDFSCluster {
           MockRepairManager.class.getName());
     }
     // use mock leader election
-    conf.setBoolean(DFSConfigKeys.DFS_HOPS_SERVICES_TEST_MODE, true);
+    conf.setBoolean(HopsConfigKeys.HOPS_SERVICES_TEST_MODE, true);
 
 
     // Setting the configuration for Storage

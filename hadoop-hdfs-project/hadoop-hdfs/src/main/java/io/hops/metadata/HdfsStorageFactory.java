@@ -18,7 +18,7 @@ package io.hops.metadata;
 import com.google.common.annotations.VisibleForTesting;
 import io.hops.DalDriver;
 import io.hops.DalStorageFactory;
-import io.hops.MultiZoneStorageConnector;
+import io.hops.multizone.MultiZoneStorageConnector;
 import io.hops.StorageConnector;
 import io.hops.common.IDsMonitor;
 import io.hops.exception.StorageException;
@@ -42,6 +42,7 @@ import io.hops.transaction.lock.LockFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.HopsConfigKeys;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoUnderConstruction;
 import org.apache.hadoop.hdfs.server.blockmanagement.PendingBlockInfo;
@@ -128,12 +129,23 @@ public class HdfsStorageFactory {
 
   public static Properties getMetadataClusterConfiguration(Configuration conf)
       throws IOException {
-    String configFile = conf.get(DFSConfigKeys.DFS_STORAGE_DRIVER_CONFIG_FILE,
-        DFSConfigKeys.DFS_STORAGE_DRIVER_CONFIG_FILE_DEFAULT);
+    String configFile = conf.get(
+        DFSConfigKeys.DFS_STORAGE_DRIVER_CONFIG_FILE, DFSConfigKeys.DFS_STORAGE_DRIVER_CONFIG_FILE_DEFAULT);
     Properties clusterConf = new Properties();
     InputStream inStream =
         StorageConnector.class.getClassLoader().getResourceAsStream(configFile);
     clusterConf.load(inStream);
+
+    // copy multizone settings from the configuration
+    clusterConf.put(
+        HopsConfigKeys.HOPS_DAL_MULTIZONE,
+        Boolean.toString(conf.getBoolean(HopsConfigKeys.HOPS_DAL_MULTIZONE, false))
+    );
+    clusterConf.put(
+        HopsConfigKeys.HOPS_DAL_ZONE,
+        conf.get(HopsConfigKeys.HOPS_DAL_ZONE, "primary")
+    );
+
     return clusterConf;
   }
   

@@ -19,10 +19,18 @@ import io.hops.transaction.TransactionCluster;
 
 public enum LeaderOperationType implements RequestHandler.OperationType {
 
-  // LeaderElection
-  LEADER_ELECTION;
+  // This enum supports leader election on both
+  PRIMARY_LEADER_ELECTION(TransactionCluster.PRIMARY),
+  SECONDARY_LEADER_ELECTION(TransactionCluster.LOCAL);
+
+
+  private final TransactionCluster cluster;
+
+  LeaderOperationType(TransactionCluster cluster) {
+    this.cluster = cluster;
+  }
 
   public TransactionCluster getCluster() {
-    return TransactionCluster.PRIMARY;
+    return cluster;
   }
 }

@@ -6,11 +6,15 @@ import java.util.HashSet;
 public class ServiceUtils {
 
   private static class Services implements Service {
-    private HashSet<Service> members;
+    private final HashSet<Service> members;
 
     public Services(Service ...ss) {
       members = new HashSet<>();
-      members.addAll(Arrays.asList(ss));
+      for(Service s: ss) {
+        if(s != null) {
+          members.add(s);
+        }
+      }
     }
 
     @Override
@@ -46,6 +50,7 @@ public class ServiceUtils {
    * will be run on all the services passed as parameters.
    * If some of the parameters refer to the same object, methods will be called
    * only once.
+   * If null services are passed, they are ignored.
    * Note that {@link Service#isRunning()} on the resulting instance will always return false.
    * @param services services to execute the operation on.
    * @return a new service

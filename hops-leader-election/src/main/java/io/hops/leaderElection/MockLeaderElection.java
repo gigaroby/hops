@@ -2,6 +2,7 @@ package io.hops.leaderElection;
 
 import io.hops.leader_election.node.ActiveNode;
 import io.hops.leader_election.node.SortedActiveNodeList;
+import io.hops.multizone.Zone;
 import io.hops.services.LeaderElectionService;
 
 import java.net.InetSocketAddress;
@@ -48,6 +49,16 @@ public class MockLeaderElection implements LeaderElectionService {
     @Override
     public int compareTo(ActiveNode o) {
       return getHttpAddress().compareTo(o.getHttpAddress());
+    }
+
+    @Override
+    public Zone getZone() {
+      return Zone.PRIMARY;
+    }
+
+    @Override
+    public boolean isConnectedToPrimary() {
+      return false;
     }
   }
 

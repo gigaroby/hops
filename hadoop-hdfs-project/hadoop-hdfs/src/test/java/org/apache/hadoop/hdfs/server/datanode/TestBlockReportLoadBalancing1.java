@@ -22,28 +22,20 @@ import io.hops.leader_election.node.SortedActiveNodeListPBImpl;
 import io.hops.metadata.HdfsStorageFactory;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
+import io.hops.multizone.Zone;
 import io.hops.transaction.TransactionCluster;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.*;
 import org.apache.hadoop.hdfs.server.blockmanagement.BRTrackingService;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
-import org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol;
-import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
-import org.apache.hadoop.hdfs.server.protocol.StorageBlockReport;
-import org.apache.hadoop.test.GenericTestUtils;
 import org.apache.hadoop.util.ExitUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
 
 import static org.junit.Assert.*;
 
@@ -86,7 +78,7 @@ public class TestBlockReportLoadBalancing1 {
 
     List<ActiveNode> list = new ArrayList<ActiveNode>();
     for (int i = 0; i < NN_COUNT; i++) {
-      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000");
+      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000", Zone.PRIMARY, false);
       list.add(anode);
     }
 
@@ -144,7 +136,7 @@ public class TestBlockReportLoadBalancing1 {
 
     List<ActiveNode> list = new ArrayList<ActiveNode>();
     for (int i = 0; i < NN_COUNT; i++) {
-      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000");
+      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000", Zone.PRIMARY, false);
       list.add(anode);
     }
 
@@ -185,7 +177,7 @@ public class TestBlockReportLoadBalancing1 {
 
     // add more namenodes 
     for (int i = NN_COUNT; i < 2 * NN_COUNT; i++) {
-      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000");
+      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000", Zone.PRIMARY, false);
       list.add(anode);
     }
     nnList = new SortedActiveNodeListPBImpl(list);
@@ -222,7 +214,7 @@ public class TestBlockReportLoadBalancing1 {
 
     List<ActiveNode> list = new ArrayList<ActiveNode>();
     for (int i = 0; i < NN_COUNT; i++) {
-      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000");
+      ActiveNodePBImpl anode = new ActiveNodePBImpl(i, "host", "localhost", i, "0.0.0.0:10000", Zone.PRIMARY, false);
       list.add(anode);
     }
 

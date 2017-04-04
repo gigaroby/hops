@@ -35,9 +35,6 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
 
   public static final String DFS_STORAGE_DRIVER_JAR_FILE_DEFAULT = "";
 
-  public static final String DFS_HOPS_SERVICES_TEST_MODE =
-      "io.hops.services.test-mode";
-
   public static final String DFS_STORAGE_DRIVER_CLASS =
       "dfs.storage.driver.class";
   public static final String DFS_STORAGE_DRIVER_CLASS_DEFAULT =

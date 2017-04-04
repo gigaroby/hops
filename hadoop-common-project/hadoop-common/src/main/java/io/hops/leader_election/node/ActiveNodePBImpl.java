@@ -17,6 +17,7 @@ package io.hops.leader_election.node;
 
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProto;
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProtoOrBuilder;
+import io.hops.multizone.Zone;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -34,14 +35,17 @@ public class ActiveNodePBImpl implements ActiveNode {
     viaProto = true;
   }
 
-  public ActiveNodePBImpl(long id, String hostname, String ipAddress, int port,
-      String httpAddress) {
+  public ActiveNodePBImpl(
+      long id, String hostname, String ipAddress, int port,
+      String httpAddress, Zone zone, boolean connectedToPrimary) {
     maybeInitBuilder();
     builder.setId(id);
     builder.setHostname(hostname);
     builder.setIpAddress(ipAddress);
     builder.setPort(port);
     builder.setHttpAddress(httpAddress);
+    builder.setConnectedToPrimary(connectedToPrimary);
+    builder.setZone(zone.toString().toLowerCase());
   }
 
   public ActiveNodeProto getProto() {
@@ -64,6 +68,28 @@ public class ActiveNodePBImpl implements ActiveNode {
       builder = ActiveNodeProto.newBuilder(proto);
     }
     viaProto = false;
+  }
+
+  @Override
+  public Zone getZone() {
+    ActiveNodeProtoOrBuilder p = viaProto ? proto: builder;
+    return Zone.fromString(p.getZone());
+  }
+
+  public void setZone(Zone zone) {
+    maybeInitBuilder();
+    builder.setZone(zone.toString().toLowerCase());
+  }
+
+  @Override
+  public boolean isConnectedToPrimary() {
+    ActiveNodeProtoOrBuilder p = viaProto ? proto: builder;
+    return p.getConnectedToPrimary();
+  }
+
+  public void setConnectedToPrimary(boolean connected) {
+    maybeInitBuilder();
+    builder.setConnectedToPrimary(connected);
   }
 
   @Override

@@ -27,6 +27,7 @@ import io.hops.leader_election.node.SortedActiveNodeListPBImpl;
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProto;
 import io.hops.metadata.hdfs.entity.EncodingPolicy;
 import io.hops.metadata.hdfs.entity.EncodingStatus;
+import io.hops.multizone.Zone;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FsServerDefaults;
@@ -1289,25 +1290,30 @@ public class PBHelper {
     }
     return new SortedActiveNodeListPBImpl(anl);
   }
-  
-  public static ActiveNode convert(ActiveNodeProto p) {
-    ActiveNode an =
-        new ActiveNodePBImpl(p.getId(), p.getHostname(), p.getIpAddress(),
-            p.getPort(), p.getHttpAddress());
-    return an;
-  }
-  
-  public static ActiveNodeProto convert(ActiveNode p) {
-    ActiveNodeProto.Builder anp = ActiveNodeProto.newBuilder();
-    anp.setId(p.getId());
-    anp.setHostname(p.getHostname());
-    anp.setIpAddress(p.getIpAddress());
-    anp.setPort(p.getPort());
-    anp.setHttpAddress(p.getHttpAddress());
 
-    return anp.build();
+  public static ActiveNode convert(ActiveNodeProto p) {
+    return new ActiveNodePBImpl(
+        p.getId(),
+        p.getHostname(),
+        p.getIpAddress(),
+        p.getPort(),
+        p.getHttpAddress(),
+        Zone.fromString(p.getZone()),
+        p.getConnectedToPrimary());
   }
-  
+
+  public static ActiveNodeProto convert(ActiveNode p) {
+    return ActiveNodeProto.newBuilder()
+        .setId(p.getId())
+        .setHostname(p.getHostname())
+        .setIpAddress(p.getIpAddress())
+        .setPort(p.getPort())
+        .setHttpAddress(p.getHttpAddress())
+        .setZone(p.getZone().toString().toLowerCase())
+        .setConnectedToPrimary(p.isConnectedToPrimary())
+        .build();
+  }
+
   public static ActiveNamenodeListResponseProto convert(
       SortedActiveNodeList anlWrapper) {
     List<ActiveNode> anl = anlWrapper.getActiveNodes();

@@ -26,8 +26,11 @@ import io.hops.leader_election.node.ActiveNode;
 import io.hops.leader_election.node.SortedActiveNodeList;
 import io.hops.metadata.HdfsStorageFactory;
 import io.hops.metadata.HdfsVariables;
+import io.hops.metadata.ndb.multizone.SecondaryConnector;
+import io.hops.multizone.*;
 import io.hops.security.Users;
 import io.hops.services.LeaderElectionService;
+import io.hops.services.ServiceUtils;
 import io.hops.transaction.TransactionCluster;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -40,6 +43,7 @@ import org.apache.hadoop.ha.ServiceFailedException;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.hdfs.HopsConfigKeys;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.blockmanagement.BRTrackingService;
@@ -218,7 +222,14 @@ public class NameNode {
   private NameNodeRpcServer rpcServer;
 
 
-  private LeaderElectionService leaderElectionService;
+  /**
+   * Leader election procedures.
+   * If multizone is enabled and this namenode belongs to the secondary cluster there is an additional leader election
+   * procedure running.
+   */
+  private LeaderElectionService leaderElection, secondaryLeaderElection;
+  private PartitionMonitor partitionMonitor;
+
 
   /**
    * for block report load balancing
@@ -325,7 +336,7 @@ public class NameNode {
   // Common NameNode methods implementation for the active name-node role.
   //
   public NamenodeRole getRole() {
-    if (leaderElectionService != null && leaderElectionService.isLeader()) {
+    if (leaderElection != null && leaderElection.isLeader()) {
       return NamenodeRole.LEADER_NAMENODE;
     }
     return NamenodeRole.NAMENODE;
@@ -410,8 +421,7 @@ public class NameNode {
   /**
    * Initialize name-node.
    *
-   * @param conf
-   *     the configuration
+   * @param conf the configuration
    */
   protected void initialize(Configuration conf) throws IOException {
     UserGroupInformation.setConfiguration(conf);
@@ -512,9 +522,9 @@ public class NameNode {
     if (rpcServer != null) {
       rpcServer.stop();
     }
-    if (leaderElectionService != null && leaderElectionService.isRunning()) {
-      leaderElectionService.stop();
-    }
+    // stop all hops services.
+    ServiceUtils.doAll(leaderElection, secondaryLeaderElection, partitionMonitor).stop();
+
     if (plugins != null) {
       for (ServicePlugin p : plugins) {
         try {
@@ -584,8 +594,8 @@ public class NameNode {
    * <ul>
    * <li>{@link StartupOption#REGULAR REGULAR} - normal name node startup</li>
    * <li>{@link StartupOption#FORMAT FORMAT} - format name node</li>
-   * @param conf
-   *     confirguration
+   *
+   * @param conf confirguration
    * @throws IOException
    */
   public NameNode(Configuration conf) throws IOException {
@@ -1057,11 +1067,9 @@ public class NameNode {
    * unsafe for the NN to continue operating, e.g. during a failed HA state
    * transition.
    *
-   * @param t
-   *     exception which warrants the shutdown. Printed to the NN log
-   *     before exit.
-   * @throws ExitException
-   *     thrown only for testing.
+   * @param t exception which warrants the shutdown. Printed to the NN log
+   *          before exit.
+   * @throws ExitException thrown only for testing.
    */
   protected synchronized void doImmediateShutdown(Throwable t)
       throws ExitException {
@@ -1079,7 +1087,7 @@ public class NameNode {
    * Returns the id of this namenode
    */
   public long getId() {
-    return leaderElectionService.getCurrentID();
+    return leaderElection.getCurrentID();
   }
 
   /**
@@ -1088,24 +1096,24 @@ public class NameNode {
    * @return {@link NDBLeaderElection} object.
    */
   public LeaderElectionService getLeaderElectionInstance() {
-    return leaderElectionService;
+    return leaderElection;
   }
 
   public boolean isLeader() {
-    if (leaderElectionService != null) {
-      return leaderElectionService.isLeader();
+    if (leaderElection != null) {
+      return leaderElection.isLeader();
     } else {
       return false;
     }
   }
 
   public ActiveNode getNextNamenodeToSendBlockReport(final long noOfBlks) throws IOException {
-    if (leaderElectionService.isLeader()) {
-      LOG.debug("NN Id: " + leaderElectionService.getCurrentID() + ") Received request to assign work (" + noOfBlks + " blks) ");
-      ActiveNode an = brTrackingService.assignWork(leaderElectionService.getActiveNamenodes(), noOfBlks);
+    if (leaderElection.isLeader()) {
+      LOG.debug("NN Id: " + leaderElection.getCurrentID() + ") Received request to assign work (" + noOfBlks + " blks) ");
+      ActiveNode an = brTrackingService.assignWork(leaderElection.getActiveNamenodes(), noOfBlks);
       return an;
     } else {
-      String msg = "NN Id: " + leaderElectionService.getCurrentID() + ") Received request to assign work (" + noOfBlks + " blks). Returning null as I am not the leader NN";
+      String msg = "NN Id: " + leaderElection.getCurrentID() + ") Received request to assign work (" + noOfBlks + " blks). Returning null as I am not the leader NN";
       LOG.debug(msg);
       throw new BRLoadBalancingException(msg);
     }
@@ -1136,17 +1144,17 @@ public class NameNode {
     return false;
   }
 
-  public long getLeCurrentId() {
-    return leaderElectionService.getCurrentID();
+  long getLeCurrentId() {
+    return leaderElection.getCurrentID();
   }
 
   public SortedActiveNodeList getActiveNameNodes() {
-    return leaderElectionService.getActiveNamenodes();
+    return leaderElection.getActiveNamenodes();
   }
 
-  private void startHopsServices(Configuration conf) throws IOException {
-    boolean testMode = conf.getBoolean(DFSConfigKeys.DFS_HOPS_SERVICES_TEST_MODE, false);
-    if(!testMode) {
+
+  private LeaderElectionService configureLeaderElection(boolean testMode, Zone zone, Configuration conf) throws IOException {
+    if (!testMode) {
       // Initialize the leader election algorithm (only once rpc server is
       // created and httpserver is started)
       long leadercheckInterval =
@@ -1158,29 +1166,94 @@ public class NameNode {
       int leIncrement = conf.getInt(DFSConfigKeys.DFS_LEADER_TP_INCREMENT_KEY,
           DFSConfigKeys.DFS_LEADER_TP_INCREMENT_DEFAULT);
 
-      leaderElectionService = new NDBLeaderElection(
-          new HdfsLeDescriptorFactory(),
-          leadercheckInterval,
-          missedHeartBeatThreshold,
-          leIncrement,
+      return new NDBLeaderElection(
+          new HdfsLeDescriptorFactory(), leadercheckInterval,
+          missedHeartBeatThreshold, leIncrement,
           httpServer.getHttpAddress().getAddress().getHostAddress() + ":" + httpServer.getHttpAddress().getPort(),
-          rpcServer.getRpcAddress().getAddress().getHostAddress() + ":" + rpcServer.getRpcAddress().getPort()
+          rpcServer.getRpcAddress().getAddress().getHostAddress() + ":" + rpcServer.getRpcAddress().getPort(),
+          zone.toString().toLowerCase(), false, false
       );
     } else {
-      leaderElectionService = new MockLeaderElection(
+      return new MockLeaderElection(
           rpcServer.getRpcAddress().getAddress().getHostAddress(),
           rpcServer.getRpcAddress().getPort()
       );
     }
+  }
+
+  private PartitionMonitor configurePartitionMonitor(final boolean testMode, final boolean multizone, final Zone zone) {
+    // if we are not in test or multizone mode, we don't need a partition detector
+    if (testMode || !multizone) {
+      return null;
+    }
+
+    PartitionAction action = new PartitionAction() {
+      @Override
+      public void onPartitionDetected() {
+        LOG.error("partition detected");
+
+      }
+
+      @Override
+      public void onPartitionResolved() {
+        LOG.error("partition resolved");
+      }
+    };
+
+    if(zone == Zone.PRIMARY) {
+      NDBLeaderElection ple = (NDBLeaderElection) this.leaderElection;
+      return new PrimaryPartitionMonitor(action, ple);
+    }
+
+    NDBLeaderElection sle = (NDBLeaderElection) this.secondaryLeaderElection;
+    SecondaryConnector conn = (SecondaryConnector) HdfsStorageFactory.getConnector();
+
+    return new SecondaryPartitionMonitor(action, sle, conn);
+  }
+
+  private LeaderElectionService configureSecondaryLeaderElection(
+      boolean testMode, boolean multizone, Zone zone, Configuration conf) throws IOException {
+    if(testMode || !multizone || zone != Zone.SECONDARY) {
+      return null;
+    }
+
+    long leadercheckInterval = conf.getInt(
+        DFSConfigKeys.DFS_LEADER_CHECK_INTERVAL_IN_MS_KEY, DFSConfigKeys.DFS_LEADER_CHECK_INTERVAL_IN_MS_DEFAULT);
+    int missedHeartBeatThreshold = conf.getInt(
+        DFSConfigKeys.DFS_LEADER_MISSED_HB_THRESHOLD_KEY, DFSConfigKeys.DFS_LEADER_MISSED_HB_THRESHOLD_DEFAULT);
+    int leIncrement = conf.getInt(
+        DFSConfigKeys.DFS_LEADER_TP_INCREMENT_KEY, DFSConfigKeys.DFS_LEADER_TP_INCREMENT_DEFAULT);
+
+    return new NDBLeaderElection(
+        new HdfsLeDescriptorFactory(), leadercheckInterval,
+        missedHeartBeatThreshold, leIncrement,
+        httpServer.getHttpAddress().getAddress().getHostAddress() + ":" + httpServer.getHttpAddress().getPort(),
+        rpcServer.getRpcAddress().getAddress().getHostAddress() + ":" + rpcServer.getRpcAddress().getPort(),
+        zone.toString().toLowerCase(), false, true
+    );
+  }
+
+  private void startHopsServices(Configuration conf) throws IOException {
+    boolean testMode = conf.getBoolean(HopsConfigKeys.HOPS_SERVICES_TEST_MODE, false);
+    boolean multizone = conf.getBoolean(HopsConfigKeys.HOPS_DAL_MULTIZONE, false);
+    Zone zone = Zone.fromString(conf.get(HopsConfigKeys.HOPS_DAL_ZONE, "primary"));
+
+    if (testMode) {
+      LOG.warn("test mode enabled. running with mock leader election and no partition detector");
+    }
+    this.leaderElection = configureLeaderElection(testMode, zone, conf);
+    this.secondaryLeaderElection = configureSecondaryLeaderElection(testMode, multizone, zone, conf);
+    this.partitionMonitor = configurePartitionMonitor(testMode, multizone, zone);
 
 
-    leaderElectionService.start();
+    ServiceUtils.doAll(leaderElection, secondaryLeaderElection, partitionMonitor).start();
 
     try {
-      leaderElectionService.waitStarted();
+      ServiceUtils.doAll(partitionMonitor, leaderElection, secondaryLeaderElection).waitStarted();
     } catch (InterruptedException e) {
       LOG.warn("NN was interrupted");
     }
   }
+
 }
 

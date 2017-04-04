@@ -26,6 +26,7 @@ import io.hops.leader_election.node.SortedActiveNodeListPBImpl;
 import io.hops.leader_election.proto.ActiveNodeProtos;
 import io.hops.metadata.hdfs.entity.EncodingPolicy;
 import io.hops.metadata.hdfs.entity.EncodingStatus;
+import io.hops.multizone.Zone;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.ContentSummary;
@@ -957,9 +958,10 @@ public class ClientNamenodeProtocolTranslatorPB
   }
   
   private ActiveNode convertProtoANToAN(ActiveNodeProtos.ActiveNodeProto p) {
-    ActiveNode an =
-        new ActiveNodePBImpl(p.getId(), p.getHostname(), p.getIpAddress(),
-            p.getPort(), p.getHttpAddress());
+    ActiveNode an = new ActiveNodePBImpl(
+        p.getId(), p.getHostname(), p.getIpAddress(), p.getPort(), p.getHttpAddress(),
+        Zone.fromString(p.getZone()), p.getConnectedToPrimary()
+    );
     return an;
   }
   

@@ -35,6 +35,8 @@ message ActiveNodeProto {
   optional int32 port = 4;
   optional string httpAddress = 5;
   extensions 6 to 6;
+  optional bool connectedToPrimary = 7;
+  optional string zone = 8;
 }
 
 message SortedActiveNodeListProto{

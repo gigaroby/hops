@@ -39,6 +39,9 @@ public class LEContext {
   protected long time_period_increment;
   protected boolean nextTimeTakeStrongerLocks;
 
+  protected String zone;
+  protected boolean connectedToPrimary;
+
   private LEContext() {
   }
 
@@ -55,14 +58,16 @@ public class LEContext {
     time_period_increment = context.time_period_increment;
     nextTimeTakeStrongerLocks = context.nextTimeTakeStrongerLocks;
 
+    zone = context.zone;
+    connectedToPrimary = context.connectedToPrimary;
+
     //clone history
-    history = new ArrayList<HashMap<Long, LeDescriptor>>();
+    history = new ArrayList<>();
     if (!context.history.isEmpty()) {
       for (HashMap<Long, LeDescriptor> map : context.history) {
-        HashMap<Long, LeDescriptor> newMap = new HashMap<Long, LeDescriptor>();
+        HashMap<Long, LeDescriptor> newMap = new HashMap<>();
         for (LeDescriptor process : map.values()) {
-          LeDescriptor processClone =
-              (LeDescriptor) leFactory.cloneDescriptor(process);
+          LeDescriptor processClone = leFactory.cloneDescriptor(process);
           newMap.put(processClone.getId(), processClone);
         }
         history.add(newMap);
@@ -79,7 +84,7 @@ public class LEContext {
     context.last_hb_time = 0;
     context.leader = -1;
     context.time_period = 0;
-    context.history = new ArrayList<HashMap<Long, LeDescriptor>>();
+    context.history = new ArrayList<>();
     context.id = NDBLeaderElection.LEADER_INITIALIZATION_ID;
     context.init_phase = false;
     context.max_missed_hb_threshold = 2;
@@ -88,6 +93,8 @@ public class LEContext {
     context.rpc_address = null;
     context.time_period_increment = 0;
     context.nextTimeTakeStrongerLocks = false;
+    context.connectedToPrimary = false;
+    context.zone = null;
     return context;
   }
 }

@@ -46,9 +46,30 @@ public class NDBLeaderElection extends Thread
   private boolean relinquishCurrentId = false;
   private final LeDescriptorFactory leFactory;
 
+  private final boolean secondaryOnlyLeaderElection;
+
+  /**
+   * Creates a leader election service.
+   * @param leFactory
+   * @param time_period
+   * @param max_missed_hb_threshold
+   * @param time_period_increment
+   * @param http_address
+   * @param host_name
+   * @param zone
+   * @param connectedToPrimary
+   * @param secondaryOnlyLeaderElection runs the service in secondary only mode.
+   * @throws IOException
+   */
   public NDBLeaderElection(final LeDescriptorFactory leFactory,
                            final long time_period, final int max_missed_hb_threshold,
-                           final long time_period_increment, String http_address, String host_name)
+                           final long time_period_increment,
+                           final String http_address,
+                           final String host_name,
+                           final String zone,
+                           final boolean connectedToPrimary,
+                           final boolean secondaryOnlyLeaderElection
+  )
       throws IOException {
     context = LEContext.initialContext();
     context.init_phase = true;
@@ -57,14 +78,17 @@ public class NDBLeaderElection extends Thread
     context.rpc_address = host_name;
     context.http_address = http_address;
     context.time_period_increment = time_period_increment;
+    context.connectedToPrimary = connectedToPrimary;
+    context.zone = zone;
     this.leFactory = leFactory;
+    this.secondaryOnlyLeaderElection = secondaryOnlyLeaderElection;
     initialize();
   }
 
   private void initialize() throws IOException {
     LETransaction transaction = new LETransaction();
     LEContext newContext =
-        transaction.doTransaction(leFactory, context, false, this);
+        transaction.doTransaction(leFactory, context, false, this.secondaryOnlyLeaderElection, this);
     swapContexts(newContext);
   }
 
@@ -85,7 +109,7 @@ public class NDBLeaderElection extends Thread
 
         LETransaction transaction = new LETransaction();
         updatedContext = transaction
-            .doTransaction(leFactory, context, relinquishCurrentId, this);
+            .doTransaction(leFactory, context, relinquishCurrentId, this.secondaryOnlyLeaderElection, this);
         relinquishCurrentId = false;
         sucessfulTx++;
       } catch (TransientStorageException te) {
@@ -163,6 +187,10 @@ public class NDBLeaderElection extends Thread
     } else {
       return false;
     }
+  }
+
+  public synchronized void setConnectedToPrimary(boolean connected) {
+    context.connectedToPrimary = connected;
   }
 
   public synchronized boolean isSecond() {

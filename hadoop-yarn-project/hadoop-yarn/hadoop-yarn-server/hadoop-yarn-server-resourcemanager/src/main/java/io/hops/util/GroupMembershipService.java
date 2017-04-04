@@ -352,11 +352,18 @@ public class GroupMembershipService extends CompositeService
         conf.getInt(CommonConfigurationKeys.DFS_LEADER_TP_INCREMENT_KEY,
             CommonConfigurationKeys.DFS_LEADER_TP_INCREMENT_DEFAULT);
 
-    leaderElectionService =
-        new NDBLeaderElection(new YarnLeDescriptorFactory(), leadercheckInterval,
-            missedHeartBeatThreshold, leIncrement, rmId,
-            groupMembershipServiceAddress.getAddress().getHostAddress() + ":"
-			   + groupMembershipServiceAddress.getPort());
+    leaderElectionService = new NDBLeaderElection(
+        new YarnLeDescriptorFactory(),
+        leadercheckInterval,
+        missedHeartBeatThreshold,
+        leIncrement,
+        rmId,
+        groupMembershipServiceAddress.getAddress().getHostAddress() +
+            ":" + groupMembershipServiceAddress.getPort(),
+        "",
+        false,
+        false
+    );
   }
 
   private class LEnGmMonitor implements Runnable {
@@ -396,7 +403,7 @@ public class GroupMembershipService extends CompositeService
   }
 
   public void relinquishId() throws InterruptedException {
-    if(leaderElectionService !=null){
+    if(leaderElectionService != null){
       leaderElectionService.relinquishCurrentIdInNextRound();
     }
   }

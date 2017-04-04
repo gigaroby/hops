@@ -25,6 +25,7 @@ import com.google.common.collect.Sets.SetView;
 import io.hops.leader_election.node.ActiveNode;
 import io.hops.leader_election.node.ActiveNodePBImpl;
 import io.hops.leader_election.node.SortedActiveNodeList;
+import io.hops.multizone.Zone;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSUtil;
@@ -148,7 +149,7 @@ class BPOfferService implements Runnable {
     for (InetSocketAddress addr : nnAddrs) {
       this.bpServices.add(new BPServiceActor(addr, this));
       nnList.add(new ActiveNodePBImpl(0, "", addr.getAddress().getHostAddress(),
-          addr.getPort(), ""));
+          addr.getPort(), "", Zone.PRIMARY, false));
     }
 
     dnConf = dn.getDnConf();

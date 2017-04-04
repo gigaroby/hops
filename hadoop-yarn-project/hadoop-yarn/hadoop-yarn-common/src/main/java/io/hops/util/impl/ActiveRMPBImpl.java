@@ -18,6 +18,7 @@ package io.hops.util.impl;
 import io.hops.leader_election.node.ActiveNodePBImpl;
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProto;
 import io.hops.leader_election.proto.ActiveNodeProtos.ActiveNodeProtoOrBuilder;
+import io.hops.multizone.Zone;
 import io.hops.util.ActiveRM;
 import org.apache.hadoop.yarn.proto.GroupMembership;
 
@@ -30,7 +31,7 @@ public class ActiveRMPBImpl extends ActiveNodePBImpl implements ActiveRM {
 
   public ActiveRMPBImpl(long id, String hostname, String ipAddress, int port,
       String httpAddress, long load) {
-    super(id, hostname, ipAddress, port, httpAddress);
+    super(id, hostname, ipAddress, port, httpAddress, Zone.PRIMARY, false);
     maybeInitBuilder();
     builder.setExtension(GroupMembership.load, load);
   }

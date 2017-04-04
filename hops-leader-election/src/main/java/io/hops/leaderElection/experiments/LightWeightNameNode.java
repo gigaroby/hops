@@ -41,7 +41,7 @@ public class LightWeightNameNode {
       throws IOException, CloneNotSupportedException {
     leaderElection =
         new NDBLeaderElection(ldf, time_period, max_missed_hb_threshold,
-            time_period_increment, http_address, rpc_address);
+            time_period_increment, http_address, rpc_address, "", false, false);
     leaderElection.start();
     LOG.debug("NameNode has started");
   }

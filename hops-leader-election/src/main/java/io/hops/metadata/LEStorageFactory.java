@@ -17,7 +17,7 @@ package io.hops.metadata;
 
 import io.hops.DalDriver;
 import io.hops.DalStorageFactory;
-import io.hops.MultiZoneStorageConnector;
+import io.hops.multizone.MultiZoneStorageConnector;
 import io.hops.StorageConnector;
 import io.hops.exception.StorageException;
 import io.hops.exception.StorageInitializtionException;

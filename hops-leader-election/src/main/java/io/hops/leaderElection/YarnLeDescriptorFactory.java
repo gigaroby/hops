@@ -34,10 +34,10 @@ public class YarnLeDescriptorFactory extends LeDescriptorFactory {
     YarnLeDescriptor.Finder finder = YarnLeDescriptor.Finder.ById;
     return finder;
   }
-  
+
   @Override
-  public LeDescriptor getNewDescriptor(long id, long counter, String hostName,
-      String httpAddress) {
+  public LeDescriptor getNewDescriptor(long id, long counter, String hostName, String httpAddress, String zone, boolean connectedToPrimary) {
+    // ignore zone and connected.
     return new YarnLeDescriptor(id, counter, hostName, httpAddress);
   }
 

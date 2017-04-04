@@ -16,8 +16,6 @@
 package io.hops.leaderElection;
 
 import io.hops.StorageConnector;
-import io.hops.exception.StorageException;
-import io.hops.exception.StorageInitializtionException;
 import io.hops.leaderElection.experiments.LightWeightNameNode;
 import io.hops.leader_election.node.ActiveNode;
 import io.hops.metadata.LEStorageFactory;

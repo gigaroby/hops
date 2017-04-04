@@ -37,15 +37,16 @@ public class HdfsLeDescriptorFactory extends LeDescriptorFactory {
 
   @Override
   public LeDescriptor getNewDescriptor(long id, long counter, String hostName,
-      String httpAddress) {
-    return new LeDescriptor.HdfsLeDescriptor(id, counter, hostName,
-        httpAddress);
+      String httpAddress, String zone, boolean connectedToPrimary) {
+    return new LeDescriptor.HdfsLeDescriptor(
+        id, counter, hostName, httpAddress, zone, connectedToPrimary);
   }
 
   @Override
   public LeDescriptor cloneDescriptor(LeDescriptor desc) {
-    return new LeDescriptor.HdfsLeDescriptor(desc.getId(), desc.getCounter(),
-        desc.getHostName(), desc.getHttpAddress());
+    return new LeDescriptor.HdfsLeDescriptor(
+        desc.getId(), desc.getCounter(), desc.getHostName(),
+        desc.getHttpAddress(), desc.getZone(), desc.isConnectedToPrimary());
   }
 
   @Override

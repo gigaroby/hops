@@ -15,20 +15,32 @@
  */
 package io.hops.leader_election.node;
 
+import io.hops.multizone.Zone;
+
 import java.net.InetSocketAddress;
 
 public interface ActiveNode extends Comparable<ActiveNode> {
+  String getHostname();
+
+  long getId();
+
+  String getIpAddress();
+
+  int getPort();
+
+  InetSocketAddress getInetSocketAddress();
   
-  public String getHostname();
+  String getHttpAddress();
 
-  public long getId();
+  /**
+   * @return the zone the namenode belongs to
+   */
+  Zone getZone();
 
-  public String getIpAddress();
-
-  public int getPort();
-
-  public InetSocketAddress getInetSocketAddress();
-  
-  public String getHttpAddress();
-
+  /**
+   * This method returns true iff the namenode is currently connected to the primary server.
+   * This only makes sense for namenodes participating in the secondary-cluster-only leader election.
+   * The result of this call in other contexts is undefined.
+   */
+  boolean isConnectedToPrimary();
 }

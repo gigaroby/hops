@@ -1337,8 +1337,8 @@ public class TestFileCreation {
     DistributedFileSystem dfs = (DistributedFileSystem) FileSystem
         .newInstance(fs.getUri(), fs.getConf());
     try {
-      final int FILES = 10;
-      final int BLOCKS = 2;
+      final int FILES = 1000;
+      final int BLOCKS = 1000;
 
       Path base = new Path("/f1/f2/f3/f4/f5");
       dfs.mkdirs(base);
@@ -1513,22 +1513,22 @@ public class TestFileCreation {
       
     }
 
-    Thread t1 = new thread(TransactionLockTypes.LockType.READ);
-    t1.start();
+    Configuration conf = new HdfsConfiguration();
+    HdfsStorageFactory.setConfiguration(conf);
 
-    Thread t2 = new thread(TransactionLockTypes.LockType.READ);
-    t2.start();
+    for(int i = 0; i < 255; i++) {
+      try {
+        acquireLock(TransactionLockTypes.LockType.READ, "DFSClient_NONMAPREDUCE_-1273425403_1");
+      } catch (IOException exc) {
 
-    t1.join();
-    t2.join();
-
-
+      } finally {
+        try { Thread.sleep(5000); } catch (InterruptedException exc) {}
+      }
+    }
   }
 
   private void acquireLock(final TransactionLockTypes.LockType lockType,
       final String holder) throws IOException {
-    Configuration conf = new HdfsConfiguration();
-    HdfsStorageFactory.setConfiguration(conf);
     HopsTransactionalRequestHandler testHandler =
         new HopsTransactionalRequestHandler(HDFSOperationType.TEST) {
           TransactionLockTypes.LockType lockType = null;

@@ -19,6 +19,7 @@ import com.google.common.collect.Sets;
 import io.hops.leader_election.node.ActiveNode;
 import io.hops.leader_election.node.ActiveNodePBImpl;
 import io.hops.leader_election.node.SortedActiveNodeList;
+import io.hops.multizone.Zone;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -122,7 +123,7 @@ public class NamenodeSelector {
     this.defaultUri = null;
     ActiveNode dummyActiveNamenode =
         new ActiveNodePBImpl(1, "localhost", "127.0.0.1", 9999,
-            "0.0.0.0:50070");
+            "0.0.0.0:50070", Zone.PRIMARY, false);
     this.nnList.add(
         new NamenodeSelector.NamenodeHandle(namenode, dummyActiveNamenode));
     this.conf = conf;
